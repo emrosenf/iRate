@@ -9,9 +9,8 @@
 #import "iRate.h"
 #ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
 #import "PSAlertView.h"
-#endif
-
 #import "GANTracker.h"
+#endif
 
 NSString * const iRateEmailListKey = @"iRateEmailList";
 
