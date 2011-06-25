@@ -11,6 +11,8 @@
 #import "PSAlertView.h"
 #endif
 
+#import "GANTracker.h"
+
 NSString * const iRateEmailListKey = @"iRateEmailList";
 
 NSString * const iRateRatedVersionKey = @"iRateRatedVersionChecked";
@@ -29,7 +31,7 @@ static iRate *sharedInstance = nil;
 
 
 #define SECONDS_IN_A_DAY 86400.0
-#define MAC_APP_STORE_REFRESH_DELAY 5
+#define MAC_APP_STORE_REFRESH_DELAY 2
 
 
 @interface iRate()
@@ -358,24 +360,80 @@ static iRate *sharedInstance = nil;
 	return YES;
 }
 
+
+
 - (void)promptForRating
 {
 	
 #ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
-	
-	UIAlertView *alert = [[UIAlertView alloc] initWithTitle:self.messageTitle
-													message:self.message
-												   delegate:self
-										  cancelButtonTitle:cancelButtonLabel
-										  otherButtonTitles:rateButtonLabel, nil];
-	
-	if (remindButtonLabel)
-	{
-		[alert addButtonWithTitle:remindButtonLabel];
-	}
-	
-	[alert show];
-	[alert release];
+	PSAlertView *alert = [PSAlertView alertWithTitle:nil 
+                                             message:NSLocalizedString(@"review", @"Review")];
+#if LITE
+    alert.alertView.message = @"Would you like to upgrade?";
+    [alert addButtonWithTitle:@"Upgrade to Wikibot ($0.99)" block:^{
+        self.ratedThisVersion = YES;
+        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[AppSettings sharedInstance] wikibotURL]]];
+    }];
+    [alert addButtonWithTitle:@"Upgrade to Wiki Offline ($9.99)" block:^{
+        self.ratedThisVersion = YES;
+        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[[AppSettings sharedInstance] upgradeURL]]];
+    }];
+#else
+    
+    int twitter = 0;
+    if ([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:@"tweetbot://post"]]) {
+        twitter = 1;
+    } else if ([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:@"twitter://post"]]) {
+        twitter =2 ;
+    }
+    if (twitter > 0) {
+        [alert addButtonWithTitle:@"Share on Twitter" block:^{
+            NSString *base = nil;
+            if (twitter == 1) {
+                base = @"tweetbot:///post?text=";
+            } else {
+                base = @"twitter://post?message=";
+            }
+            NSString *appName = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleDisplayName"];
+            NSString *source = @"Wikipedia";
+#if WIKITRAVEL
+            source = @"Wikitravel";
+#endif
+            NSString *message = [[NSString stringWithFormat:@"%@ is an amazing way to read %@ on my %@. Check it out: %@", appName, source, [UIDevice currentDevice].model, [[AppSettings sharedInstance] iTunesURL]] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+            GANTracker *tracker = [GANTracker sharedTracker];
+            [tracker setWikiType];
+            [tracker trackEvent:@"twitter"
+                         action:@"share app"
+                          label:nil
+                          value:-1
+                      withError:NULL];
+            NSString *tweetURL = [base stringByAppendingString:message];
+            [[UIApplication sharedApplication] openURL:[NSURL URLWithString:tweetURL]];
+        }];
+    } else {
+        [alert addButtonWithTitle:@"Share on Facebook" block:^{
+            [self performSelector:@selector(shareApp:) withObject:nil afterDelay:0.4];
+        }];
+    }
+    [alert addButtonWithTitle:NSLocalizedString(@"rate", @"Rate now") 
+    block:^{
+        //mark as rated
+        self.ratedThisVersion = YES;
+        
+        //go to ratings page
+        [self openRatingsPageInAppStore];
+    }];
+#endif
+    [alert addButtonWithTitle:NSLocalizedString(@"remind_later", @"Remind me later") block:^{
+        //remind later
+		self.lastReminded = [NSDate date];
+    }];
+
+    [alert setCancelButtonWithTitle:NSLocalizedString(@"no_thx", @"No, Thanks") block:^{
+        //ignore this version
+		self.declinedThisVersion = YES;
+    }];
+    [alert show];
 	
 #else
 	
@@ -483,6 +541,12 @@ static iRate *sharedInstance = nil;
 #pragma mark UIAlertViewDelegate methods
 
 #ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+
+
+- (void) shareApp:(id)sender {
+    [[AppSettings sharedInstance] shareOnFacebook:self];
+}
+
 
 - (void)openRatingsPageInAppStore
 {
