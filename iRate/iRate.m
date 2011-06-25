@@ -409,11 +409,8 @@ static iRate *sharedInstance = nil;
             NSString *tweetURL = [base stringByAppendingString:message];
             [[UIApplication sharedApplication] openURL:[NSURL URLWithString:tweetURL]];
         }];
-    } else {
-        [alert addButtonWithTitle:@"Share on Facebook" block:^{
-            [self performSelector:@selector(shareApp:) withObject:nil afterDelay:0.4];
-        }];
     }
+    
     [alert addButtonWithTitle:NSLocalizedString(@"rate", @"Rate now") 
     block:^{
         //mark as rated
@@ -540,11 +537,6 @@ static iRate *sharedInstance = nil;
 #pragma mark UIAlertViewDelegate methods
 
 #ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
-
-
-- (void) shareApp:(id)sender {
-    [[AppSettings sharedInstance] shareOnFacebook:self];
-}
 
 
 - (void)openRatingsPageInAppStore
