@@ -7,7 +7,11 @@
 //
 
 #import "iRate.h"
+#ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+#import "PSAlertView.h"
+#endif
 
+NSString * const iRateEmailListKey = @"iRateEmailList";
 
 NSString * const iRateRatedVersionKey = @"iRateRatedVersionChecked";
 NSString * const iRateDeclinedVersionKey = @"iRateDeclinedVersion";
@@ -203,6 +207,15 @@ static iRate *sharedInstance = nil;
 	[[NSUserDefaults standardUserDefaults] synchronize];
 }
 
+- (BOOL)signedUpForEmailList {
+    return [[[NSUserDefaults standardUserDefaults] objectForKey:iRateEmailListKey] boolValue];
+}
+
+- (void) setSignedUpForEmailList:(BOOL)signedUp {
+    [[NSUserDefaults standardUserDefaults] setObject:[NSNumber numberWithBool:signedUp] forKey:iRateEmailListKey];
+	[[NSUserDefaults standardUserDefaults] synchronize];
+}
+
 - (BOOL)ratedThisVersion
 {
 	return [[[NSUserDefaults standardUserDefaults] objectForKey:iRateRatedVersionKey] isEqualToString:applicationVersion];
@@ -240,6 +253,68 @@ static iRate *sharedInstance = nil;
 {
 	self.eventCount ++;
 }
+
+
+#ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+- (BOOL)shouldPromptForEmailList
+{
+	//check if disabled
+	if (disabled)
+	{
+		return NO;
+	}
+	
+	//debug mode?
+	else if (debug)
+	{
+		return YES;
+	}
+	
+	//check if we've rated this version
+	else if ([self signedUpForEmailList])
+	{
+		return NO;
+	}
+	
+	//check how long we've been using this version
+	else if (self.firstUsed == nil || [[NSDate date] timeIntervalSinceDate:self.firstUsed] < 2 * SECONDS_IN_A_DAY)
+	{
+		return NO;
+	}
+	
+	//check how many times we've used it and the number of significant events
+	else if (self.usesCount < 5)
+	{
+		return NO;
+	}
+	
+	//lets prompt!
+	return YES;
+}
+
+
+
+- (void)promptForEmailList
+{
+	
+	PSAlertView *alert = [PSAlertView alertWithTitle:NSLocalizedString(@"subscribe_newsletter_title", nil) 
+                                             message:NSLocalizedString(@"subscribe_newsletter_msg", nil)];
+    [alert addButtonWithTitle:NSLocalizedString(@"OK", @"Okay") 
+        block:^{
+            //mark as rated
+            [self setSignedUpForEmailList:YES];
+            UINavigationController *nav = [[[UIApplication sharedApplication] delegate] rootViewController];
+            UIViewController *root = [nav topViewController];
+            [root modalRegistration];
+        }];
+    
+    [alert setCancelButtonWithTitle:NSLocalizedString(@"no_thx", @"No, Thanks") block:^{
+        //ignore this version
+		[self setSignedUpForEmailList:YES];
+    }];
+    [alert show];	
+}
+#endif
 
 - (BOOL)shouldPromptForRating
 {	
@@ -388,6 +463,11 @@ static iRate *sharedInstance = nil;
 	{
 		[self promptIfNetworkAvailable];
 	}
+#ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+    if ([self shouldPromptForEmailList]) {
+        [self promptForEmailList];
+    }
+#endif
 }
 
 - (void)applicationWillEnterForeground:(NSNotification *)notification
